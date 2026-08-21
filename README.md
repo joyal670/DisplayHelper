@@ -79,31 +79,23 @@ colour. Whether it is on shows in the dropdown, as both a checkmark and a
 ### Build
 
 ```bash
-swiftc -O main.swift -o DisplayHelper
+./build.sh
+open dist/DisplayHelper.app
 ```
 
-### Package it as an app bundle
+`build.sh` produces a universal (arm64 + x86_64) release binary, wraps it in
+`dist/DisplayHelper.app` using `Resources/Info.plist`, and ad-hoc signs it.
 
-The Accessibility permission is granted to a *bundle*, not a loose binary, so
-run it as a real `.app`:
+Install it with:
 
 ```bash
-mkdir -p DisplayHelper.app/Contents/MacOS
-cp DisplayHelper DisplayHelper.app/Contents/MacOS/DisplayHelper
+cp -R dist/DisplayHelper.app ~/Applications/
 ```
 
-Add `DisplayHelper.app/Contents/Info.plist` with `CFBundleExecutable` set to
-`DisplayHelper`, `CFBundleIdentifier` to `local.displayhelper`, and
-`LSUIElement` set to `true` so it stays out of the Dock. Then install it:
-
-```bash
-cp -R DisplayHelper.app ~/Applications/
-open ~/Applications/DisplayHelper.app
-```
-
-> **Note:** `Info.plist` is not currently checked into this repository — the
-> installed bundle at `~/Applications/DisplayHelper.app` has one, but the repo
-> alone will not produce a complete bundle without writing it. Worth committing.
+The bundle matters: `LSUIElement` keeps it out of the Dock, and the
+Accessibility permission below is granted to a bundle identity
+(`local.displayhelper`) rather than to a loose binary — running the bare
+executable will not pick up the grant.
 
 ### Grant Accessibility access
 
@@ -154,3 +146,7 @@ when it lands after the threshold has been crossed.
 - If the app is force-quit rather than quit, the child `caffeinate` is
   terminated by the OS along with it — but if you ever suspect a stray
   assertion, `pmset -g assertions` lists what is currently held.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
