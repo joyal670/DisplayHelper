@@ -13,6 +13,10 @@ let CHECK_EVERY: TimeInterval = 30 // how often to check (seconds)
 let F15_KEYCODE: CGKeyCode = 113
 
 final class AppController: NSObject, NSApplicationDelegate {
+    /// Remembers the toggle across launches. Unset means on — the app is
+    /// meant to be doing its job by default rather than waiting to be asked.
+    private static let keepAwakeKey = "keepDisplayAwake"
+
     private var statusItem: NSStatusItem!
     private var toggleMenuItem: NSMenuItem!
     private var statusMenuItem: NSMenuItem!
@@ -24,6 +28,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var caffeinateGeneration = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // register(defaults:) rather than a plain read, so "never set" reads as
+        // on without being confused with an explicit off.
+        UserDefaults.standard.register(defaults: [Self.keepAwakeKey: true])
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         // Neutral, monochrome menu bar glyph that adapts to light/dark.
@@ -54,11 +62,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
 
         statusItem.menu = menu
-        render()
+
+        if UserDefaults.standard.bool(forKey: Self.keepAwakeKey) {
+            start()   // renders on its way through
+        } else {
+            render()
+        }
     }
 
     @objc private func toggle() {
         active ? stop() : start()
+        // Persisted only here, on a deliberate click. start()/stop() are also
+        // driven by caffeinate dying unexpectedly, and that should not be
+        // recorded as the user choosing to switch the feature off.
+        UserDefaults.standard.set(active, forKey: Self.keepAwakeKey)
     }
 
     private func start() {

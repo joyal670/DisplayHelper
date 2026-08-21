@@ -7,7 +7,8 @@ A macOS menu-bar utility that keeps your display awake and your system marked
 
 A single monochrome glyph that adapts to light and dark. It looks identical
 whether the toggle is on or off — state lives in the dropdown, never as a
-colour tell in the bar.
+colour tell in the bar. It starts **on**, so it works from launch without
+being switched on each time.
 
 Two things are happening at once, and the difference matters:
 
@@ -132,7 +133,7 @@ System Settings → General → Login Items → **+** → select the app in
 
 | Item | Behaviour |
 |---|---|
-| `Status: On` / `Status: Off` | Current state, non-clickable |
+| `Status: On` / `Status: Off` | Current state, non-clickable. Starts on |
 | **Keep Display Awake** | Toggles; checkmark reflects state |
 | **Quit** (`⌘Q`) | Stops cleanly, releasing `caffeinate` first |
 
@@ -153,9 +154,15 @@ when it lands after the threshold has been crossed.
 
 - **`-s` only applies on AC power.** On battery, macOS overrides the system-sleep
   assertion. Display sleep (`-d`) is still prevented either way.
-- **Settings are not persisted.** The toggle starts **Off** on every launch, by
-  design — it should not silently keep your Mac awake after a reboot you forgot
-  about.
+- **The toggle starts on.** An unset preference reads as on, so a fresh install
+  is already doing its job rather than waiting to be asked. An explicit choice
+  is remembered: switch it off and it stays off across launches, until you
+  switch it back on.
+- **Only a deliberate click is recorded.** `start()` and `stop()` also run when
+  `caffeinate` dies unexpectedly, and that must not be written down as you
+  choosing to disable the feature — otherwise one stray kill would silently
+  change the default. Reset to the shipped default with:
+  `defaults delete local.displayhelper keepDisplayAwake`
 - **No login-item registration in-app.** Unlike NetSpeedBar, this one has no
   `SMAppService` support; use System Settings as above.
 - **A force-quit is handled**, via `caffeinate -w` as described above. To check
