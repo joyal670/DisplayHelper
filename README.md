@@ -26,7 +26,7 @@ the menu bar. Pure Cocoa, no third-party dependencies.
 
 ## Download
 
-[**Download DisplayHelper 1.0.0**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
+[**Download DisplayHelper 1.0.1**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
 
 Unzip, move it to `~/Applications`, then clear the quarantine flag macOS attaches to
 downloads:
