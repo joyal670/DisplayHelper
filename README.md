@@ -105,6 +105,25 @@ Two deliberate choices there:
 The timer is added in `.common` run-loop mode, so it keeps firing while menus
 are open rather than stalling in tracking mode.
 
+### Why not a permission-free API?
+
+Posting synthetic events is the reason this app needs Accessibility, so the
+obvious question is whether something public can do the same job.
+`IOPMAssertionDeclareUserActivity` — the "declare the user is active" call that
+`caffeinate -u` uses internally, requiring no permission at all — looks like the
+answer. It is not. Measured against a genuinely idle machine:
+
+```
+IOPMAssertionDeclareUserActivity rc=0   (call succeeded)
+  idle before=50s  after=50s            (timer untouched)
+  5s later: 55s                         (still climbing)
+```
+
+It returns success and leaves the idle timer alone. `HIDIdleTime` is a HID-layer
+counter and IOKit power assertions are a separate subsystem; they do not reach
+each other. Posting a real input event is the only thing that resets it, and
+that requires the permission. Don't swap it out expecting a free win.
+
 State is intentionally invisible from the bar itself — the glyph never changes
 colour. Whether it is on shows in the dropdown, as both a checkmark and a
 `Status: On` / `Status: Off` line.
