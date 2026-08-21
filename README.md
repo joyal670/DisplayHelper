@@ -140,14 +140,22 @@ executable will not pick up the grant.
 
 ### Grant Accessibility access
 
-Posting synthetic key events requires it, and **without it the app runs but the
-idle nudge silently does nothing** — `caffeinate` still works, so the screen
-stays on while the idle timer keeps climbing. If the behaviour seems half-broken,
-check here first:
+Posting synthetic key events requires it. The app prompts on first switch-on,
+and if the permission is missing it says so — the menu reads
+`Status: On — needs Accessibility` and grows a **Grant Accessibility Access…**
+item that opens the right settings pane.
 
-**System Settings → Privacy & Security → Accessibility** → enable DisplayHelper.
+That reporting exists because the failure is otherwise invisible: `caffeinate`
+keeps working, so the display never sleeps and the app looks healthy, while the
+idle timer climbs unchecked and the screen saver starts anyway.
 
-After granting it, quit and relaunch the app.
+**System Settings → Privacy & Security → Accessibility** → enable DisplayHelper,
+then quit and relaunch.
+
+> **Rebuilding invalidates the grant.** The ad-hoc signature is derived from the
+> binary's contents, so every rebuild produces a different code identity and
+> macOS treats it as a new app. After rebuilding, expect to remove the old
+> DisplayHelper entry from the Accessibility list and re-add the new one.
 
 ### Launch at login
 
@@ -162,6 +170,7 @@ System Settings → General → Login Items → **+** → select the app in
 |---|---|
 | `Status: On` / `Status: Off` | Current state, non-clickable. Starts on |
 | **Keep Display Awake** | Toggles; checkmark reflects state |
+| **Grant Accessibility Access…** | Only shown when the permission is missing |
 | **Quit** (`⌘Q`) | Stops cleanly, releasing `caffeinate` first |
 
 ## Tuning
@@ -176,6 +185,27 @@ Constants at the top of `main.swift` — edit and rebuild:
 
 Keep `CHECK_EVERY` comfortably below `IDLE_THRESHOLD`; the check only has effect
 when it lands after the threshold has been crossed.
+
+## Troubleshooting
+
+**The screen still goes dark even though the toggle is on.** Two separate
+mechanisms are involved, and only one of them is `caffeinate`'s to stop:
+
+| What happens | Blocked by | If it still happens |
+|---|---|---|
+| Display *sleeps* | `caffeinate -d` | Check `pmset -g \| grep displaysleep` — it should read `(display sleep prevented by caffeinate)` |
+| Screen *saver* starts | the F15 idle nudge | Accessibility is missing — see above |
+
+`caffeinate` has no effect on the screen saver, which fires purely on idle time.
+Check your threshold with:
+
+```bash
+defaults -currentHost read com.apple.screensaver idleTime
+```
+
+If that value is lower than `IDLE_THRESHOLD` plus `CHECK_EVERY` (274 s by
+default), the screen saver can win the race even with Accessibility granted.
+Either raise the screen saver's idle time or lower `IDLE_THRESHOLD`.
 
 ## Notes and limitations
 

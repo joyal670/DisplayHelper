@@ -1,4 +1,5 @@
 import Cocoa
+import ApplicationServices
 
 // Display Helper — a menu bar utility that keeps the display awake and the
 // system marked active while you're away. Toggle from the menu bar.
@@ -20,6 +21,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var toggleMenuItem: NSMenuItem!
     private var statusMenuItem: NSMenuItem!
+    private var accessibilityMenuItem: NSMenuItem!
     private var timer: Timer?
     private var caffeinate: Process?
     private var active = false
@@ -56,6 +58,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         toggleMenuItem.target = self
         menu.addItem(toggleMenuItem)
 
+        accessibilityMenuItem = NSMenuItem(
+            title: "Grant Accessibility Access…",
+            action: #selector(openAccessibilitySettings),
+            keyEquivalent: "")
+        accessibilityMenuItem.target = self
+        menu.addItem(accessibilityMenuItem)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -80,6 +89,11 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func start() {
         active = true
+        // Prompts once if the permission has never been decided. Silent if the
+        // user has already answered, so this is not a nag on every launch.
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
+
         caffeinateGeneration += 1
         let generation = caffeinateGeneration
 
@@ -146,7 +160,23 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func render() {
         // No color tell in the menu bar; state lives only in the dropdown.
         toggleMenuItem.state = active ? .on : .off
-        statusMenuItem.title = active ? "Status: On" : "Status: Off"
+
+        // Without Accessibility the idle nudge silently does nothing while
+        // caffeinate still holds the display, so the app looks like it is
+        // working when half of it is not. Say so rather than just "On".
+        let trusted = AXIsProcessTrusted()
+        if active && !trusted {
+            statusMenuItem.title = "Status: On — needs Accessibility"
+        } else {
+            statusMenuItem.title = active ? "Status: On" : "Status: Off"
+        }
+        accessibilityMenuItem?.isHidden = trusted
+    }
+
+    @objc private func openAccessibilitySettings() {
+        let url = URL(string:
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
     }
 
     @objc private func quit() {
