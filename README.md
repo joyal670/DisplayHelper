@@ -1,34 +1,156 @@
 # DisplayHelper
 
-A macOS menu-bar utility that keeps the display awake and the system marked active
-while you are away. Toggle it from the menu bar.
+A macOS menu-bar utility that keeps your display awake and your system marked
+**active** while you are away from the keyboard.
 
-When **ON**, every 30 seconds it checks the system idle time. Past a 4-minute idle
-threshold it posts a no-op `F15` keypress — which does nothing on a normal keyboard —
-to reset the idle timer, and holds a `caffeinate` process so the display and system
-will not sleep. When **OFF** it does nothing at all.
+Two things are happening at once, and the difference matters:
 
-## Build
+- **Keeping the screen on** — a held `caffeinate` process stops the display and
+  system from sleeping.
+- **Keeping you "not idle"** — a periodic synthetic keypress resets the system
+  idle timer, so anything reading idle time sees recent activity.
 
-```sh
+Plain `caffeinate` only does the first. Screen savers, lock-on-idle, and
+presence indicators in chat and collaboration apps read the *idle timer*, and a
+`caffeinate`d Mac still goes idle by that measure. DisplayHelper addresses both.
+
+No Dock icon, no window — it runs as an `.accessory` app and lives entirely in
+the menu bar. Pure Cocoa, no third-party dependencies.
+
+## What it's for
+
+- Long builds, downloads, renders, or test runs you want to watch without the
+  screen dimming every few minutes
+- Reading, watching, or presenting something without touching the trackpad
+- Keeping a machine reachable and awake during remote sessions
+- Any workflow where the display sleeping mid-task is disruptive
+
+**Be straight with yourself about this one:** the idle-timer nudge also
+suppresses the away/idle status that presence-aware apps report. If your
+workplace treats that indicator as a signal about working hours, using this to
+appear present while you are not is the kind of thing that damages trust badly
+when it comes out. Keeping a screen awake during a build is the intended use.
+
+## How it works
+
+```
+menu bar toggle ──► start()
+                     ├── spawn /usr/bin/caffeinate -dimsu   (held for the session)
+                     └── Timer, every 30s ──► tick()
+                                                └── idle >= 240s? post F15 down/up
+```
+
+**Sleep prevention.** `start()` launches `/usr/bin/caffeinate -dimsu` as a child
+process and holds the handle. The flags assert, in order: **d** display sleep,
+**i** idle sleep, **m** disk sleep, **s** system sleep on AC power, and **u**
+user-active. Turning the toggle off calls `terminate()` on it, so the assertion
+is released immediately rather than lingering.
+
+**Idle-timer reset.** Every `CHECK_EVERY` seconds the timer fires `tick()`,
+which reads the true idle time via
+`CGEventSource.secondsSinceLastEventType(.combinedSessionState, ...)`. Only once
+that crosses `IDLE_THRESHOLD` does it post a paired **F15** key-down and key-up
+through `.cghidEventTap`.
+
+Two deliberate choices there:
+
+- **F15 (key code 113)** because it is a no-op on ordinary keyboards — no
+  modifier state, no text inserted, nothing focused or scrolled. Compare
+  Shift, which lights up as a modifier, or arrow keys, which move a cursor
+  through whatever window happens to be frontmost.
+- **Threshold, not a metronome.** The keypress fires only when you are actually
+  idle. While you are using the machine, nothing is injected at all.
+
+The timer is added in `.common` run-loop mode, so it keeps firing while menus
+are open rather than stalling in tracking mode.
+
+State is intentionally invisible from the bar itself — the glyph never changes
+colour. Whether it is on shows in the dropdown, as both a checkmark and a
+`Status: On` / `Status: Off` line.
+
+## Requirements
+
+- macOS 13 or later
+- Xcode command line tools (`xcode-select --install`) for `swiftc`
+- **Accessibility permission** — required, see below
+
+## Setup
+
+### Build
+
+```bash
 swiftc -O main.swift -o DisplayHelper
 ```
 
-To produce the app bundle installed at `~/Applications/DisplayHelper.app`
-(bundle id `local.displayhelper`), place the compiled binary at
-`DisplayHelper.app/Contents/MacOS/DisplayHelper`.
+### Package it as an app bundle
+
+The Accessibility permission is granted to a *bundle*, not a loose binary, so
+run it as a real `.app`:
+
+```bash
+mkdir -p DisplayHelper.app/Contents/MacOS
+cp DisplayHelper DisplayHelper.app/Contents/MacOS/DisplayHelper
+```
+
+Add `DisplayHelper.app/Contents/Info.plist` with `CFBundleExecutable` set to
+`DisplayHelper`, `CFBundleIdentifier` to `local.displayhelper`, and
+`LSUIElement` set to `true` so it stays out of the Dock. Then install it:
+
+```bash
+cp -R DisplayHelper.app ~/Applications/
+open ~/Applications/DisplayHelper.app
+```
+
+> **Note:** `Info.plist` is not currently checked into this repository — the
+> installed bundle at `~/Applications/DisplayHelper.app` has one, but the repo
+> alone will not produce a complete bundle without writing it. Worth committing.
+
+### Grant Accessibility access
+
+Posting synthetic key events requires it, and **without it the app runs but the
+idle nudge silently does nothing** — `caffeinate` still works, so the screen
+stays on while the idle timer keeps climbing. If the behaviour seems half-broken,
+check here first:
+
+**System Settings → Privacy & Security → Accessibility** → enable DisplayHelper.
+
+After granting it, quit and relaunch the app.
+
+### Launch at login
+
+System Settings → General → Login Items → **+** → select the app in
+`~/Applications`.
+
+## Menu
+
+| Item | Behaviour |
+|---|---|
+| `Status: On` / `Status: Off` | Current state, non-clickable |
+| **Keep Display Awake** | Toggles; checkmark reflects state |
+| **Quit** (`⌘Q`) | Stops cleanly, releasing `caffeinate` first |
 
 ## Tuning
 
-Constants at the top of `main.swift`:
+Constants at the top of `main.swift` — edit and rebuild:
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `IDLE_THRESHOLD` | `240` | seconds idle before nudging |
-| `CHECK_EVERY` | `30` | how often to check, in seconds |
-| `F15_KEYCODE` | `113` | key code posted as the no-op nudge |
+| `IDLE_THRESHOLD` | `240` | Seconds idle before nudging (4 min) |
+| `CHECK_EVERY` | `30` | How often to check idle time, in seconds |
+| `F15_KEYCODE` | `113` | Key code posted as the no-op nudge |
 
-## Permissions
+Keep `CHECK_EVERY` comfortably below `IDLE_THRESHOLD`; the check only has effect
+when it lands after the threshold has been crossed.
 
-Posting synthetic key events requires **Accessibility** access:
-System Settings → Privacy & Security → Accessibility.
+## Notes and limitations
+
+- **`-s` only applies on AC power.** On battery, macOS overrides the system-sleep
+  assertion. Display sleep (`-d`) is still prevented either way.
+- **Settings are not persisted.** The toggle starts **Off** on every launch, by
+  design — it should not silently keep your Mac awake after a reboot you forgot
+  about.
+- **No login-item registration in-app.** Unlike NetSpeedBar, this one has no
+  `SMAppService` support; use System Settings as above.
+- If the app is force-quit rather than quit, the child `caffeinate` is
+  terminated by the OS along with it — but if you ever suspect a stray
+  assertion, `pmset -g assertions` lists what is currently held.
