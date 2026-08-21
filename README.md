@@ -24,6 +24,31 @@ presence indicators in chat and collaboration apps read the *idle timer*, and a
 No Dock icon, no window — it runs as an `.accessory` app and lives entirely in
 the menu bar. Pure Cocoa, no third-party dependencies.
 
+## Download
+
+[**Download DisplayHelper 1.0.0**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
+
+Unzip, move it to `~/Applications`, then clear the quarantine flag macOS attaches to
+downloads:
+
+```bash
+xattr -dr com.apple.quarantine ~/Applications/DisplayHelper.app
+open ~/Applications/DisplayHelper.app
+```
+
+That step is not optional. The app is **ad-hoc signed rather than notarized**,
+so Gatekeeper refuses to open it and reports it as damaged. It is not damaged —
+the bundle passes `codesign --verify --strict`; the message is what macOS shows
+for any un-notarized app that arrived with a quarantine flag.
+
+It also needs **Accessibility** permission (System Settings › Privacy & Security
+› Accessibility). Without it the idle nudge silently does nothing while
+`caffeinate` still holds the display awake, so the app looks half-broken rather
+than blocked.
+
+Building from source avoids this entirely, since a locally built copy is never
+quarantined.
+
 ## What it's for
 
 - Long builds, downloads, renders, or test runs you want to watch without the
