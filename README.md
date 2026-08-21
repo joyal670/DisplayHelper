@@ -3,6 +3,12 @@
 A macOS menu-bar utility that keeps your display awake and your system marked
 **active** while you are away from the keyboard.
 
+<img src="docs/menubar.png" alt="DisplayHelper display glyph in the macOS menu bar" width="60">
+
+A single monochrome glyph that adapts to light and dark. It looks identical
+whether the toggle is on or off — state lives in the dropdown, never as a
+colour tell in the bar.
+
 Two things are happening at once, and the difference matters:
 
 - **Keeping the screen on** — a held `caffeinate` process stops the display and
@@ -146,6 +152,16 @@ when it lands after the threshold has been crossed.
 - If the app is force-quit rather than quit, the child `caffeinate` is
   terminated by the OS along with it — but if you ever suspect a stray
   assertion, `pmset -g assertions` lists what is currently held.
+
+## See also
+
+One of three small macOS menu-bar utilities, shown here running side by side:
+
+<img src="docs/menubar-context.png" alt="All three utilities in the macOS menu bar" width="300">
+
+- [NetSpeedBar](https://github.com/joyal670/NetSpeedBar) — live download and upload speed
+- [DisplayHelper](https://github.com/joyal670/DisplayHelper) — keeps the display awake and the system marked active  ← *you are here*
+- [PowerToggleBar](https://github.com/joyal670/PowerToggleBar) — one-click battery saver with exact restore
 
 ## License
 
