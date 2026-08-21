@@ -46,11 +46,20 @@ menu bar toggle ──► start()
                                                 └── idle >= 240s? post F15 down/up
 ```
 
-**Sleep prevention.** `start()` launches `/usr/bin/caffeinate -dimsu` as a child
-process and holds the handle. The flags assert, in order: **d** display sleep,
-**i** idle sleep, **m** disk sleep, **s** system sleep on AC power, and **u**
-user-active. Turning the toggle off calls `terminate()` on it, so the assertion
-is released immediately rather than lingering.
+**Sleep prevention.** `start()` launches
+`/usr/bin/caffeinate -dimsu -w <own pid>` as a child process and holds the
+handle. The flags assert, in order: **d** display sleep, **i** idle sleep,
+**m** disk sleep, **s** system sleep on AC power, and **u** user-active.
+Turning the toggle off calls `terminate()` on it, so the assertion is released
+immediately rather than lingering.
+
+`-w` is what makes that safe. It tells `caffeinate` to watch this process and
+exit when it does. A child process is *not* killed with its parent on macOS —
+it is reparented to `launchd` and runs on — so without `-w` a force-quit, which
+never reaches `terminate()`, would leave the display pinned awake with no UI
+left to switch it off. The app also installs a `terminationHandler`: if
+`caffeinate` is killed from outside, the toggle flips itself back to Off rather
+than continuing to report a hold it no longer has.
 
 **Idle-timer reset.** Every `CHECK_EVERY` seconds the timer fires `tick()`,
 which reads the true idle time via
@@ -149,9 +158,12 @@ when it lands after the threshold has been crossed.
   about.
 - **No login-item registration in-app.** Unlike NetSpeedBar, this one has no
   `SMAppService` support; use System Settings as above.
-- If the app is force-quit rather than quit, the child `caffeinate` is
-  terminated by the OS along with it — but if you ever suspect a stray
-  assertion, `pmset -g assertions` lists what is currently held.
+- **A force-quit is handled**, via `caffeinate -w` as described above. To check
+  what is actually being held at any time, `pmset -g assertions` lists every
+  live assertion — look for `PreventUserIdleDisplaySleep`.
+- **If `caffeinate` is killed externally**, the toggle drops back to Off rather
+  than lying about being on. It does not restart it automatically: a repeatedly
+  dying helper should be visible, not papered over.
 
 ## See also
 

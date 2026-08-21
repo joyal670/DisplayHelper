@@ -19,6 +19,9 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var caffeinate: Process?
     private var active = false
+    /// Bumped whenever the caffeinate process is replaced or deliberately
+    /// stopped, so a stale terminationHandler can tell it is stale.
+    private var caffeinateGeneration = 0
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -60,11 +63,36 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func start() {
         active = true
+        caffeinateGeneration += 1
+        let generation = caffeinateGeneration
+
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/caffeinate")
-        p.arguments = ["-dimsu"]
-        try? p.run()
-        caffeinate = p
+        // -w ties the assertion's lifetime to this process: caffeinate releases
+        // it and exits by itself once we exit. Without it, a force-quit — which
+        // never reaches stop() — leaves caffeinate reparented to launchd,
+        // pinning the display awake with no UI left to switch it off.
+        p.arguments = ["-dimsu", "-w", String(ProcessInfo.processInfo.processIdentifier)]
+        // caffeinate can still be killed out from under us. Notice it rather
+        // than carry on reporting a hold we no longer have.
+        p.terminationHandler = { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.active,
+                      self.caffeinateGeneration == generation else { return }
+                self.stop()
+            }
+        }
+
+        do {
+            try p.run()
+            caffeinate = p
+        } catch {
+            // Nothing is holding the display awake, so do not claim otherwise.
+            caffeinate = nil
+            active = false
+            render()
+            return
+        }
 
         let t = Timer(timeInterval: CHECK_EVERY, repeats: true) { [weak self] _ in
             self?.tick()
@@ -76,6 +104,9 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func stop() {
         active = false
+        // Invalidates any pending terminationHandler, so the terminate() below
+        // is not mistaken for caffeinate dying unexpectedly.
+        caffeinateGeneration += 1
         timer?.invalidate()
         timer = nil
         caffeinate?.terminate()
