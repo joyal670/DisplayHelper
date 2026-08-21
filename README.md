@@ -131,6 +131,8 @@ System Settings → General → Login Items → **+** → select the app in
 
 ## Menu
 
+<img src="docs/menu.png" alt="The DisplayHelper menu open, showing Status: On and Keep Display Awake checked" width="330">
+
 | Item | Behaviour |
 |---|---|
 | `Status: On` / `Status: Off` | Current state, non-clickable. Starts on |
