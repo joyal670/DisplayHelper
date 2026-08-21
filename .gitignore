@@ -3,3 +3,4 @@ DisplayHelper
 *.dSYM/
 build/
 dist/
+previous/

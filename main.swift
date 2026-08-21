@@ -9,8 +9,23 @@ import ApplicationServices
 // keyboards) to reset the system idle timer, and holds `caffeinate` so the
 // display/system won't sleep. When OFF it does nothing.
 
-let IDLE_THRESHOLD: Double = 240   // seconds idle before nudging (4 min)
-let CHECK_EVERY: TimeInterval = 30 // how often to check (seconds)
+// Tunable at runtime, so changing them needs no rebuild:
+//
+//   defaults write local.displayhelper idleThreshold -float 45
+//   defaults write local.displayhelper checkEvery    -float 15
+//
+// That matters more than it looks. The ad-hoc signature is derived from the
+// binary, so every rebuild is a new code identity and the Accessibility grant
+// has to be removed and re-added. Reading these from UserDefaults means tuning
+// never costs you the permission.
+//
+// The default is deliberately well below any plausible idle threshold in other
+// software. Nudging at 240s let the idle timer peak around 255s, which loses a
+// race against anything that reacts sooner.
+let IDLE_THRESHOLD: Double =
+    UserDefaults.standard.object(forKey: "idleThreshold") as? Double ?? 60
+let CHECK_EVERY: TimeInterval =
+    UserDefaults.standard.object(forKey: "checkEvery") as? Double ?? 20
 let F15_KEYCODE: CGKeyCode = 113
 
 final class AppController: NSObject, NSApplicationDelegate {

@@ -26,7 +26,7 @@ the menu bar. Pure Cocoa, no third-party dependencies.
 
 ## Download
 
-[**Download DisplayHelper 1.0.1**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
+[**Download DisplayHelper 1.0.2**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
 
 Unzip, move it to `~/Applications`, then clear the quarantine flag macOS attaches to
 downloads:
@@ -194,12 +194,20 @@ System Settings → General → Login Items → **+** → select the app in
 
 ## Tuning
 
-Constants at the top of `main.swift` — edit and rebuild:
+Set at runtime — **no rebuild required**, which matters because every rebuild
+invalidates the Accessibility grant:
+
+```bash
+defaults write local.displayhelper idleThreshold -float 45
+defaults write local.displayhelper checkEvery    -float 15
+```
+
+Quit and relaunch to pick them up. Defaults:
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `IDLE_THRESHOLD` | `240` | Seconds idle before nudging (4 min) |
-| `CHECK_EVERY` | `30` | How often to check idle time, in seconds |
+| `idleThreshold` | `60` | Seconds idle before nudging |
+| `checkEvery` | `20` | How often to check idle time, in seconds |
 | `F15_KEYCODE` | `113` | Key code posted as the no-op nudge |
 
 Keep `CHECK_EVERY` comfortably below `IDLE_THRESHOLD`; the check only has effect
