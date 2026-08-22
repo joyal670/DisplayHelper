@@ -17,9 +17,10 @@ Two things are happening at once, and the difference matters:
 - **Keeping you "not idle"** — a periodic synthetic keypress resets the system
   idle timer, so anything reading idle time sees recent activity.
 
-Plain `caffeinate` only does the first. Screen savers, lock-on-idle, and
-presence indicators in chat and collaboration apps read the *idle timer*, and a
-`caffeinate`d Mac still goes idle by that measure. DisplayHelper addresses both.
+Plain `caffeinate` only does the first. Screen savers and lock-on-idle read the
+*idle timer*, and a `caffeinate`d Mac still goes idle by that measure —
+`caffeinate` alone keeps the display lit while the screen saver starts anyway.
+DisplayHelper addresses both.
 
 No Dock icon, no window — it runs as an `.accessory` app and lives entirely in
 the menu bar. Pure Cocoa, no third-party dependencies.
@@ -57,11 +58,13 @@ quarantined.
 - Keeping a machine reachable and awake during remote sessions
 - Any workflow where the display sleeping mid-task is disruptive
 
-**Be straight with yourself about this one:** the idle-timer nudge also
-suppresses the away/idle status that presence-aware apps report. If your
-workplace treats that indicator as a signal about working hours, using this to
-appear present while you are not is the kind of thing that damages trust badly
-when it comes out. Keeping a screen awake during a build is the intended use.
+### What it does not do
+
+It does not control how other applications report your availability. Presence in
+chat and collaboration clients is tracked by those clients themselves, not by the
+system idle timer — holding the idle timer at zero for nine minutes leaves their
+status unchanged. Resetting the idle timer affects the screen saver and
+lock-on-idle, and nothing beyond that.
 
 ## How it works
 
