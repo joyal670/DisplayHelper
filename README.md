@@ -58,14 +58,6 @@ quarantined.
 - Keeping a machine reachable and awake during remote sessions
 - Any workflow where the display sleeping mid-task is disruptive
 
-### What it does not do
-
-It does not control how other applications report your availability. Presence in
-chat and collaboration clients is tracked by those clients themselves, not by the
-system idle timer — holding the idle timer at zero for nine minutes leaves their
-status unchanged. Resetting the idle timer affects the screen saver and
-lock-on-idle, and nothing beyond that.
-
 ## How it works
 
 ```
