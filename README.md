@@ -7,8 +7,8 @@ A macOS menu-bar utility that keeps your display awake and your system marked
 
 A single monochrome glyph that adapts to light and dark. It looks identical
 whether the toggle is on or off — state lives in the dropdown, never as a
-colour tell in the bar. It starts **on**, so it works from launch without
-being switched on each time.
+colour tell in the bar. It starts **off** on every launch — switch it on when
+you want it.
 
 Two things are happening at once, and the difference matters:
 
@@ -26,7 +26,7 @@ the menu bar. Pure Cocoa, no third-party dependencies.
 
 ## Download
 
-[**Download DisplayHelper 1.0.2**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
+[**Download DisplayHelper 1.0**](https://github.com/joyal670/DisplayHelper/releases/latest/download/DisplayHelper.app.zip) — universal binary, macOS 13 or later
 
 Unzip, move it to `~/Applications`, then clear the quarantine flag macOS attaches to
 downloads:
@@ -72,20 +72,17 @@ menu bar toggle ──► start()
                                                 └── idle >= 240s? post F15 down/up
 ```
 
-**Sleep prevention.** `start()` launches
-`/usr/bin/caffeinate -dimsu -w <own pid>` as a child process and holds the
-handle. The flags assert, in order: **d** display sleep, **i** idle sleep,
-**m** disk sleep, **s** system sleep on AC power, and **u** user-active.
-Turning the toggle off calls `terminate()` on it, so the assertion is released
-immediately rather than lingering.
+**Sleep prevention.** `start()` launches `/usr/bin/caffeinate -dimsu` as a
+child process and holds the handle. The flags assert, in order: **d** display
+sleep, **i** idle sleep, **m** disk sleep, **s** system sleep on AC power, and
+**u** user-active. Turning the toggle off calls `terminate()` on it, so the
+assertion is released immediately rather than lingering.
 
-`-w` is what makes that safe. It tells `caffeinate` to watch this process and
-exit when it does. A child process is *not* killed with its parent on macOS —
-it is reparented to `launchd` and runs on — so without `-w` a force-quit, which
-never reaches `terminate()`, would leave the display pinned awake with no UI
-left to switch it off. The app also installs a `terminationHandler`: if
-`caffeinate` is killed from outside, the toggle flips itself back to Off rather
-than continuing to report a hold it no longer has.
+> **A force-quit orphans `caffeinate`.** A child process is not killed with its
+> parent on macOS — it is reparented to `launchd` and keeps running, holding the
+> display awake with no UI left to switch it off. Quit from the menu rather than
+> force-quitting. If you suspect a stray assertion, `pmset -g assertions` lists
+> what is held; `pgrep -fl caffeinate` finds the process.
 
 **Idle-timer reset.** Every `CHECK_EVERY` seconds the timer fires `tick()`,
 which reads the true idle time via
@@ -159,14 +156,11 @@ executable will not pick up the grant.
 
 ### Grant Accessibility access
 
-Posting synthetic key events requires it. The app prompts on first switch-on,
-and if the permission is missing it says so — the menu reads
-`Status: On — needs Accessibility` and grows a **Grant Accessibility Access…**
-item that opens the right settings pane.
-
-That reporting exists because the failure is otherwise invisible: `caffeinate`
-keeps working, so the display never sleeps and the app looks healthy, while the
-idle timer climbs unchecked and the screen saver starts anyway.
+Posting synthetic key events requires it, and **the app neither asks for it nor
+reports its absence** — it just silently does nothing. `caffeinate` keeps
+working regardless, so the display never sleeps and the app looks healthy while
+the idle timer climbs unchecked and the screen saver starts anyway. If the
+behaviour seems half-broken, check here first.
 
 **System Settings → Privacy & Security → Accessibility** → enable DisplayHelper,
 then quit and relaunch.
@@ -187,27 +181,18 @@ System Settings → General → Login Items → **+** → select the app in
 
 | Item | Behaviour |
 |---|---|
-| `Status: On` / `Status: Off` | Current state, non-clickable. Starts on |
+| `Status: On` / `Status: Off` | Current state, non-clickable. Starts off |
 | **Keep Display Awake** | Toggles; checkmark reflects state |
-| **Grant Accessibility Access…** | Only shown when the permission is missing |
 | **Quit** (`⌘Q`) | Stops cleanly, releasing `caffeinate` first |
 
 ## Tuning
 
-Set at runtime — **no rebuild required**, which matters because every rebuild
-invalidates the Accessibility grant:
-
-```bash
-defaults write local.displayhelper idleThreshold -float 45
-defaults write local.displayhelper checkEvery    -float 15
-```
-
-Quit and relaunch to pick them up. Defaults:
+Constants at the top of `main.swift` — edit and rebuild:
 
 | Constant | Default | Meaning |
 |---|---|---|
-| `idleThreshold` | `60` | Seconds idle before nudging |
-| `checkEvery` | `20` | How often to check idle time, in seconds |
+| `IDLE_THRESHOLD` | `240` | Seconds idle before nudging (4 min) |
+| `CHECK_EVERY` | `30` | How often to check idle time, in seconds |
 | `F15_KEYCODE` | `113` | Key code posted as the no-op nudge |
 
 Keep `CHECK_EVERY` comfortably below `IDLE_THRESHOLD`; the check only has effect
@@ -230,7 +215,7 @@ Check your threshold with:
 defaults -currentHost read com.apple.screensaver idleTime
 ```
 
-If that value is lower than `IDLE_THRESHOLD` plus `CHECK_EVERY` (274 s by
+If that value is lower than `IDLE_THRESHOLD` plus `CHECK_EVERY` (270 s by
 default), the screen saver can win the race even with Accessibility granted.
 Either raise the screen saver's idle time or lower `IDLE_THRESHOLD`.
 
@@ -238,15 +223,8 @@ Either raise the screen saver's idle time or lower `IDLE_THRESHOLD`.
 
 - **`-s` only applies on AC power.** On battery, macOS overrides the system-sleep
   assertion. Display sleep (`-d`) is still prevented either way.
-- **The toggle starts on.** An unset preference reads as on, so a fresh install
-  is already doing its job rather than waiting to be asked. An explicit choice
-  is remembered: switch it off and it stays off across launches, until you
-  switch it back on.
-- **Only a deliberate click is recorded.** `start()` and `stop()` also run when
-  `caffeinate` dies unexpectedly, and that must not be written down as you
-  choosing to disable the feature — otherwise one stray kill would silently
-  change the default. Reset to the shipped default with:
-  `defaults delete local.displayhelper keepDisplayAwake`
+- **Settings are not persisted.** The toggle starts **Off** on every launch, so
+  a reboot never leaves your Mac silently held awake.
 - **No login-item registration in-app.** Unlike NetSpeedBar, this one has no
   `SMAppService` support; use System Settings as above.
 - **A force-quit is handled**, via `caffeinate -w` as described above. To check
