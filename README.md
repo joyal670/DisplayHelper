@@ -97,6 +97,10 @@ Two deliberate choices there:
 The timer is added in `.common` run-loop mode, so it keeps firing while menus
 are open rather than stalling in tracking mode.
 
+State is intentionally invisible from the bar itself — the glyph never changes
+colour. Whether it is on shows in the dropdown, as both a checkmark and a
+`Status: On` / `Status: Off` line.
+
 ### Why not a permission-free API?
 
 Posting synthetic events is the reason this app needs Accessibility, so the
@@ -116,9 +120,6 @@ counter and IOKit power assertions are a separate subsystem; they do not reach
 each other. Posting a real input event is the only thing that resets it, and
 that requires the permission. Don't swap it out expecting a free win.
 
-State is intentionally invisible from the bar itself — the glyph never changes
-colour. Whether it is on shows in the dropdown, as both a checkmark and a
-`Status: On` / `Status: Off` line.
 
 ## Requirements
 
@@ -222,12 +223,13 @@ Either raise the screen saver's idle time or lower `IDLE_THRESHOLD`.
   a reboot never leaves your Mac silently held awake.
 - **No login-item registration in-app.** Unlike NetSpeedBar, this one has no
   `SMAppService` support; use System Settings as above.
-- **A force-quit is handled**, via `caffeinate -w` as described above. To check
-  what is actually being held at any time, `pmset -g assertions` lists every
-  live assertion — look for `PreventUserIdleDisplaySleep`.
-- **If `caffeinate` is killed externally**, the toggle drops back to Off rather
-  than lying about being on. It does not restart it automatically: a repeatedly
-  dying helper should be visible, not papered over.
+- **A force-quit orphans `caffeinate`**, as described above — it is reparented
+  to `launchd` and goes on holding the display awake. Quit from the menu. To see
+  what is held at any time, `pmset -g assertions` lists every live assertion —
+  look for `PreventUserIdleDisplaySleep`.
+- **The app does not notice if `caffeinate` dies.** Kill it from outside and the
+  menu still reads `Status: On` while nothing holds the display. Toggling off
+  and on again recovers it.
 
 ## See also
 
