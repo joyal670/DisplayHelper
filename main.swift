@@ -28,7 +28,7 @@ let CHECK_EVERY: TimeInterval =
     UserDefaults.standard.object(forKey: "checkEvery") as? Double ?? 20
 let F15_KEYCODE: CGKeyCode = 113
 
-final class AppController: NSObject, NSApplicationDelegate {
+final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Remembers the toggle across launches. Unset means on — the app is
     /// meant to be doing its job by default rather than waiting to be asked.
     private static let keepAwakeKey = "keepDisplayAwake"
@@ -85,6 +85,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         quit.target = self
         menu.addItem(quit)
 
+        menu.delegate = self
         statusItem.menu = menu
 
         if UserDefaults.standard.bool(forKey: Self.keepAwakeKey) {
@@ -95,7 +96,15 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggle() {
+        let wasActive = active
         active ? stop() : start()
+        // Switching on by hand is a deliberate act, so this is the right moment
+        // to ask -- and by now TCC is definitely up. Silent when already
+        // trusted or already answered.
+        if !wasActive && !AXIsProcessTrusted() {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        }
         // Persisted only here, on a deliberate click. start()/stop() are also
         // driven by caffeinate dying unexpectedly, and that should not be
         // recorded as the user choosing to switch the feature off.
@@ -104,11 +113,12 @@ final class AppController: NSObject, NSApplicationDelegate {
 
     private func start() {
         active = true
-        // Prompts once if the permission has never been decided. Silent if the
-        // user has already answered, so this is not a nag on every launch.
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
-
+        // No permission prompt here. start() runs at every launch now that the
+        // toggle defaults to on, and at login the app can come up before TCC is
+        // ready to answer -- AXIsProcessTrusted() returns false, and prompting
+        // on that produces a permission dialog on every restart for a
+        // permission that is already granted. Prompt only on a deliberate
+        // click, in toggle() and the menu item.
         caffeinateGeneration += 1
         let generation = caffeinateGeneration
 
@@ -140,6 +150,9 @@ final class AppController: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Invalidate any previous timer first. Leaving one running would give
+        // two live timers nudging on independent schedules.
+        timer?.invalidate()
         let t = Timer(timeInterval: CHECK_EVERY, repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -186,6 +199,12 @@ final class AppController: NSObject, NSApplicationDelegate {
             statusMenuItem.title = active ? "Status: On" : "Status: Off"
         }
         accessibilityMenuItem?.isHidden = trusted
+    }
+
+    // Trust can arrive after launch, so re-read it whenever the menu opens
+    // rather than trusting whatever was true at startup.
+    func menuWillOpen(_ menu: NSMenu) {
+        render()
     }
 
     @objc private func openAccessibilitySettings() {
